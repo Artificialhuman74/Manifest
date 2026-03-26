@@ -200,6 +200,13 @@ if (!window.__pesuDL) {
     .mnamein{flex:1;background:none;border:none;outline:none;color:#F8FAFC;font-size:11px;font-family:inherit;}
     .mnamein::placeholder{color:#475569;}
     .mnext{font-size:11px;color:#64748b;flex-shrink:0;}
+
+    /* directory picker row */
+    .dirrow{display:flex;align-items:center;gap:8px;padding:9px 11px;background:#1E293B;border:1px solid rgba(255,255,255,0.07);border-radius:9px;margin-bottom:11px;cursor:pointer;transition:border-color .15s;}
+    .dirrow:hover{border-color:rgba(59,130,246,.35);}
+    .dirico{font-size:14px;flex-shrink:0;}
+    .dirname{flex:1;font-size:11px;font-weight:600;color:#94A3B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .dirbtn{font-size:9.5px;font-weight:700;color:#3B82F6;background:none;border:none;cursor:pointer;padding:0 2px;flex-shrink:0;}
   </style>
   <div id="p">
     <div id="hdr">
@@ -250,6 +257,53 @@ if (!window.__pesuDL) {
   /* ── state ──────────────────────────────────────────────── */
   let running       = false;
   let mergeCallback = null;
+  let dirHandle     = null;
+
+  /* ── directory picker helpers ───────────────────────────── */
+  function openIDB() {
+    return new Promise((res, rej) => {
+      const req = indexedDB.open('pesuDL', 1);
+      req.onupgradeneeded = e => e.target.result.createObjectStore('kv');
+      req.onsuccess = e => res(e.target.result);
+      req.onerror   = e => rej(e.target.error);
+    });
+  }
+  async function loadDirHandle() {
+    try {
+      const db = await openIDB();
+      return new Promise(res => {
+        const req = db.transaction('kv').objectStore('kv').get('dir');
+        req.onsuccess = () => res(req.result || null);
+        req.onerror   = () => res(null);
+      });
+    } catch { return null; }
+  }
+  async function saveDirHandle(h) {
+    try {
+      const db = await openIDB();
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put(h, 'dir');
+    } catch {}
+  }
+  async function chooseDir() {
+    try {
+      const h = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
+      dirHandle = h;
+      await saveDirHandle(h);
+      return h;
+    } catch { return null; }
+  }
+  const sanFS = s => (s || 'unknown').replace(/[<>:"/\\|?*\n\r]+/g, '_').replace(/\s+/g, '_').trim().slice(0, 60);
+  async function fsaWrite(subdir, filename, bytes) {
+    const sub = await dirHandle.getDirectoryHandle(subdir, { create: true });
+    const fh  = await sub.getFileHandle(filename, { create: true });
+    const w   = await fh.createWritable();
+    await w.write(bytes);
+    await w.close();
+  }
+
+  // Load stored handle on init (permission checked before each download)
+  loadDirHandle().then(h => { if (h) dirHandle = h; });
 
   /* ── DOM helpers ────────────────────────────────────────── */
   function getCourseTitle() {
@@ -440,7 +494,14 @@ if (!window.__pesuDL) {
 
     const unitLabel = activeTabLink?.textContent.trim() || '';
 
+    const dirLabel = dirHandle ? dirHandle.name : 'Downloads/PESU_Slides';
+
     bdy.innerHTML = `
+      <div class="dirrow" id="dirRow">
+        <span class="dirico">📁</span>
+        <span class="dirname" id="dirName">${dirLabel}</span>
+        <button class="dirbtn" id="dirBtn">Change</button>
+      </div>
       <div class="clabel">
         <strong id="ctitle">${title}</strong>
         ${total} modules &nbsp;·&nbsp; ${types.length ? scanSummary : 'no content found'}
@@ -475,8 +536,22 @@ if (!window.__pesuDL) {
     const getMergeName = () => (nameInput.value.trim() || defaultName).replace(/[^a-zA-Z0-9 _\-]/g, '_').trim().slice(0, 80) || 'merged';
     const getConvert = () => shadow.getElementById('convertToggle').checked;
 
+    shadow.getElementById('dirRow').addEventListener('click', async () => {
+      const h = await chooseDir();
+      if (h) shadow.getElementById('dirName').textContent = h.name;
+    });
+
     shadow.querySelectorAll('.tbtn[data-type]').forEach(btn => {
-      btn.addEventListener('click', () => startDL(btn.dataset.type, title, getMerge(), getMergeName(), getConvert()));
+      btn.addEventListener('click', async () => {
+        // Verify/request FSA permission while we still have a user gesture
+        if (dirHandle) {
+          try {
+            const perm = await dirHandle.requestPermission({ mode: 'readwrite' });
+            if (perm !== 'granted') dirHandle = null;
+          } catch { dirHandle = null; }
+        }
+        startDL(btn.dataset.type, title, getMerge(), getMergeName(), getConvert());
+      });
     });
 
     // Async: extract course title from page's rendered text (innerText pierces shadow DOM in MAIN world)
@@ -661,7 +736,7 @@ if (!window.__pesuDL) {
         <div class="dicon">✓</div>
         <div class="dtitle">All Done!</div>
         <div class="dsub">${fileCount} file${fileCount !== 1 ? 's' : ''} queued to download</div>
-        <div class="dsub" style="font-size:9.5px;margin-top:3px">Downloads/PESU_Slides/</div>
+        <div class="dsub" style="font-size:9.5px;margin-top:3px">${dirHandle ? dirHandle.name + '/' : 'Downloads/PESU_Slides/'}</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px">
         <button class="abtn" id="thisCourseBtn">This Course</button>
@@ -732,7 +807,14 @@ if (!window.__pesuDL) {
   function fire(url, counter, courseTitle, unitName, ext) {
     const base = url.split('?')[0];
     const full = base.startsWith('http') ? base : location.origin + base;
-    send({ type: 'download', url: full, counter, courseTitle, unitName, ext });
+    if (dirHandle) {
+      fetch(full, { credentials: 'include' })
+        .then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`)))
+        .then(buf => fsaWrite(sanFS(unitName), `${counter}.${ext}`, buf))
+        .catch(() => send({ type: 'download', url: full, counter, courseTitle, unitName, ext }));
+    } else {
+      send({ type: 'download', url: full, counter, courseTitle, unitName, ext });
+    }
   }
 
   function convertPptFile(url, counter, unitName) {
