@@ -1,6 +1,6 @@
-# PESU Slide Downloader
+# Manifest
 
-Chrome extension to bulk-download slides and notes from PESU Academy course units.
+Chrome extension to bulk-download slides, notes, assignments, QB, QA, and references from PESU Academy course units.
 
 ---
 
@@ -21,7 +21,7 @@ After installing LibreOffice, run the one-time setup script to connect it to the
 bash install_native_host.sh
 ```
 
-When prompted, open `chrome://extensions`, find **PESU Slide Downloader**, copy its ID, and paste it in the terminal.
+When prompted, open `chrome://extensions`, find **Manifest**, copy its ID, and paste it in the terminal.
 
 Then reload the extension in `chrome://extensions`. The **Convert PPTs to PDF** toggle will now work.
 
@@ -74,11 +74,12 @@ To reload after a code change: click the refresh icon on the extension card in `
 
 1. Go to [PESU Academy](https://www.pesuacademy.com) and log in
 2. Navigate to **My Courses** and open a course
-3. Click the extension icon — a floating panel appears
-4. *(Optional)* Toggle **Convert PPTs to PDF** to convert any PowerPoint files to PDF on the fly
-5. *(Optional)* Toggle **Merge PDFs after download** and set a filename
-6. Click **Slides** or **Notes** to start downloading
-7. Files are saved to `Downloads/PESU_Slides/<unit name>/`
+3. Select a unit tab — the panel shows the active unit name
+4. Click the extension icon — a floating panel appears
+5. *(Optional)* Toggle **Convert PPTs to PDF** to convert any PowerPoint files to PDF on the fly
+6. *(Optional)* Toggle **Merge PDFs after download** and set a filename
+7. Click any content type button — **Slides**, **Notes**, **Assignments**, **QB**, **QA**, or **References** — to start downloading; only buttons for types that have content in the selected unit are shown
+8. Files are saved to `Downloads/PESU_Slides/<unit name>/`
 
 ---
 

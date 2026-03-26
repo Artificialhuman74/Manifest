@@ -117,7 +117,7 @@ if (!window.__pesuDL) {
     .clabel strong{display:block;font-size:12px;color:#93C5FD;margin-bottom:2px;}
 
     /* type picker */
-    .trow{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .trow{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;}
     .tbtn{
       padding:12px 6px;background:#1E293B;
       border:1px solid rgba(255,255,255,0.07);border-radius:10px;
@@ -203,8 +203,8 @@ if (!window.__pesuDL) {
   </style>
   <div id="p">
     <div id="hdr">
-      <div class="logo">P</div>
-      <span class="ptitle">PESU Downloader</span>
+      <div class="logo">M</div>
+      <span class="ptitle">Manifest</span>
       <button class="hbtn" id="colBtn">—</button>
       <button class="hbtn" id="clsBtn">✕</button>
     </div>
@@ -253,6 +253,8 @@ if (!window.__pesuDL) {
 
   /* ── DOM helpers ────────────────────────────────────────── */
   function getCourseTitle() {
+    const saved = sessionStorage.getItem('__pesuCourse');
+    if (saved) return saved;
     // Course codes look like UE24CS241B, UE22EC151B, etc.
     const codeRe = /[A-Z]{2}\d{2}[A-Z]{2}\d{3}[A-Z]/;
     const selectors = [
@@ -274,7 +276,9 @@ if (!window.__pesuDL) {
     for (let i = 0; i < ths.length; i++)
       if (ths[i].textContent.trim().toLowerCase().includes(headerText.toLowerCase()))
         return i;
-    return headerText === 'slides' ? 3 : 4; // fallback from observed DOM
+    if (headerText === 'slides') return 3;
+    if (headerText === 'notes')  return 4;
+    return -1;
   }
 
   function cellHasContent(cell) {
@@ -285,6 +289,7 @@ if (!window.__pesuDL) {
 
   function prescan(type) {
     const col = getColIndex(type);
+    if (col < 0) return [];
     return qsa('tr[onclick]').filter(tr => {
       const cells = tr.querySelectorAll('td');
       return cellHasContent(cells[col]);
@@ -292,12 +297,12 @@ if (!window.__pesuDL) {
   }
 
   function findContentTab(type) {
-    // Find tab by text match first, then fallback IDs
+    const t = type.toLowerCase();
     const all = qsa('[id^="contentType_"]');
-    for (const t of all)
-      if (t.textContent.trim().toLowerCase() === type.toLowerCase()) return t;
-    if (type === 'slides') return qs('#contentType_2');
-    if (type === 'notes')  return qs('#contentType_3') || qs('#contentType_4');
+    for (const el of all)
+      if (el.textContent.trim().toLowerCase().includes(t)) return el;
+    if (t === 'slides') return qs('#contentType_2');
+    if (t === 'notes')  return qs('#contentType_3') || qs('#contentType_4');
     return null;
   }
 
@@ -361,6 +366,7 @@ if (!window.__pesuDL) {
       btn.addEventListener('click', () => {
         const c = courses[+btn.dataset.i];
         bdy.innerHTML = `<div class="hint">Loading course...</div>`;
+        sessionStorage.setItem('__pesuCourse', `${c.code} : ${c.name.replace(c.code,'').replace(/^[\s:]+/,'').trim()}`);
 
         const code = c.code.replace(/'/g, "\\'");
         send({
@@ -393,18 +399,52 @@ if (!window.__pesuDL) {
   function renderPicker() {
     const title    = getCourseTitle();
     const rows     = qsa('tr[onclick]');
-    const colS     = getColIndex('slides');
-    const colN     = getColIndex('notes');
-    const nSlides  = rows.filter(tr => cellHasContent(tr.querySelectorAll('td')[colS])).length;
-    const nNotes   = rows.filter(tr => cellHasContent(tr.querySelectorAll('td')[colN])).length;
     const total    = rows.length;
     const tabLinks = qsa('#courselistunit li a');
-    const defaultName = tabLinks[0]?.textContent.trim() || title;
+
+    // Detect active unit tab by matching visible row onclick IDs to tab href IDs
+    const visibleUnitIds = new Set(
+      rows.flatMap(tr =>
+        Array.from((tr.getAttribute('onclick') || '').matchAll(/'(\d+)'/g), m => m[1])
+      )
+    );
+    const activeTabLink = tabLinks.find(a => {
+      const m = a.getAttribute('href')?.match(/courseUnit_(\d+)/);
+      return m && visibleUnitIds.has(m[1]);
+    }) || tabLinks[0];
+    const defaultName = activeTabLink?.textContent.trim() || title;
+
+    // Detect all content types that have data in this unit
+    const ALL_TYPES = [
+      { key: 'slides',      label: 'Slides',      icon: '📊' },
+      { key: 'notes',       label: 'Notes',       icon: '📔' },
+      { key: 'assignments', label: 'Assignments', icon: '📝' },
+      { key: 'qb',          label: 'QB',          icon: '❓' },
+      { key: 'qa',          label: 'QA',          icon: '💬' },
+      { key: 'references',  label: 'References',  icon: '📚' },
+    ];
+    const types = ALL_TYPES.map(t => ({
+      ...t,
+      count: rows.filter(tr => cellHasContent(tr.querySelectorAll('td')[getColIndex(t.key)])).length
+    })).filter(t => t.count > 0);
+
+    const typeButtons = types.map(t =>
+      `<button class="tbtn" data-type="${t.key}">
+        <span class="tico">${t.icon}</span>
+        <span class="tlbl">${t.label}</span>
+        <span class="tcnt">${t.count} modules</span>
+      </button>`
+    ).join('');
+
+    const scanSummary = types.map(t => `<b>${t.count}</b> ${t.label}`).join(' &nbsp;·&nbsp; ');
+
+    const unitLabel = activeTabLink?.textContent.trim() || '';
 
     bdy.innerHTML = `
       <div class="clabel">
-        <strong>${title}</strong>
-        ${total} units &nbsp;·&nbsp; ${nSlides} with slides &nbsp;·&nbsp; ${nNotes} with notes
+        <strong id="ctitle">${title}</strong>
+        ${total} modules &nbsp;·&nbsp; ${types.length ? scanSummary : 'no content found'}
+        ${unitLabel ? `<span style="display:block;margin-top:4px;font-size:10px;color:#3B82F6;font-weight:600;">📂 ${unitLabel}</span>` : ''}
       </div>
       <label class="mtog" id="ctogLabel">
         <span class="mtxt">Convert PPTs to PDF</span>
@@ -420,21 +460,8 @@ if (!window.__pesuDL) {
         <input type="text" id="mergeNameInput" class="mnamein" placeholder="filename" value="${defaultName.replace(/"/g, '&quot;')}">
         <span class="mnext">.pdf</span>
       </div>
-      <div class="trow">
-        <button class="tbtn" id="bSlides">
-          <span class="tico">📊</span>
-          <span class="tlbl">Slides</span>
-          <span class="tcnt">${nSlides} units</span>
-        </button>
-        <button class="tbtn" id="bNotes">
-          <span class="tico">📔</span>
-          <span class="tlbl">Notes</span>
-          <span class="tcnt">${nNotes} units</span>
-        </button>
-      </div>
-      <div class="scanbar">
-        Pre-scanned: only <b>${nSlides}</b> / <b>${nNotes}</b> units will be visited
-      </div>`;
+      <div class="trow" style="flex-wrap:wrap">${typeButtons}</div>
+      <div class="scanbar">${types.length ? `Pre-scanned: ${scanSummary} modules` : 'No downloadable content in this unit'}</div>`;
 
     const toggle    = shadow.getElementById('mergeToggle');
     const nameRow   = shadow.getElementById('mnameRow');
@@ -448,8 +475,35 @@ if (!window.__pesuDL) {
     const getMergeName = () => (nameInput.value.trim() || defaultName).replace(/[^a-zA-Z0-9 _\-]/g, '_').trim().slice(0, 80) || 'merged';
     const getConvert = () => shadow.getElementById('convertToggle').checked;
 
-    shadow.getElementById('bSlides').addEventListener('click', () => startDL('slides', title, getMerge(), getMergeName(), getConvert()));
-    shadow.getElementById('bNotes').addEventListener('click',  () => startDL('notes',  title, getMerge(), getMergeName(), getConvert()));
+    shadow.querySelectorAll('.tbtn[data-type]').forEach(btn => {
+      btn.addEventListener('click', () => startDL(btn.dataset.type, title, getMerge(), getMergeName(), getConvert()));
+    });
+
+    // Async: extract course title from page's rendered text (innerText pierces shadow DOM in MAIN world)
+    if (title === 'MyCourses' || title === 'PESU_Course') {
+      send({
+        type: 'execScript',
+        code: `(function(){
+          var lines=(document.body.innerText||'').split('\\n');
+          var re=/[A-Z]{2}\\d{2}[A-Z]{2}\\d{3}[A-Z][^\\n]*/;
+          for(var i=0;i<lines.length;i++){
+            var t=lines[i].trim();
+            var m=t.match(re);
+            if(m&&m[0].length>8&&m[0].length<100){
+              var found=m[0].trim();
+              sessionStorage.setItem('__pesuCourse',found);
+              return found;
+            }
+          }
+          return '';
+        })()`
+      }, res => {
+        if (res?.ok && res?.result) {
+          const el = shadow.getElementById('ctitle');
+          if (el) el.textContent = res.result;
+        }
+      });
+    }
   }
 
   /* ── download flow ──────────────────────────────────────── */
@@ -457,10 +511,7 @@ if (!window.__pesuDL) {
     if (running) return;
     running = true;
 
-    const allRows    = prescan(type);
-    const tabLinks   = qsa('#courselistunit li a');
-
-    // unit ID → tab name (e.g. "65563" → "Introduction and Brute Force")
+    const tabLinks = qsa('#courselistunit li a');
     const unitIdToName = new Map(
       tabLinks.map(a => {
         const m = a.getAttribute('href')?.match(/courseUnit_(\d+)/);
@@ -469,20 +520,20 @@ if (!window.__pesuDL) {
     );
 
     const groupMap = new Map();
-    for (const tr of allRows) {
+    for (const tr of prescan(type)) {
       const oc   = tr.getAttribute('onclick') || '';
       const nums = Array.from(oc.matchAll(/'(\d+)'/g), m => m[1]);
       const id   = nums.find(n => unitIdToName.has(n));
       const name = id ? unitIdToName.get(id) : courseTitle;
       if (!groupMap.has(name)) groupMap.set(name, []);
-      groupMap.get(name).push(tr);
+      groupMap.get(name).push({ onclick: oc, rowName: tr.querySelector('td')?.textContent.trim() || 'item' });
     }
 
     const tabOrder = tabLinks.map(l => l.textContent.trim()).filter(n => groupMap.has(n));
     const groups = (tabOrder.length > 0 ? tabOrder : Array.from(groupMap.keys()))
-      .map(name => ({ name, rows: groupMap.get(name) }));
+      .map(name => ({ name, items: groupMap.get(name) }));
 
-    const total = groups.reduce((sum, g) => sum + g.rows.length, 0);
+    const total = groups.reduce((sum, g) => sum + g.items.length, 0);
 
     bdy.innerHTML = `
       <div class="dstatus" id="dst">Starting…</div>
@@ -519,11 +570,11 @@ if (!window.__pesuDL) {
       log(`=== ${group.name.slice(0, 42)} ===`, 'u');
       let tabFileNum = 0;
 
-      for (const tr of group.rows) {
+      for (const item of group.items) {
         if (stopped) break;
 
-        const onclick = tr.getAttribute('onclick');
-        const rowName = tr.querySelector('td')?.textContent.trim() || 'item';
+        const onclick = item.onclick;
+        const rowName = item.rowName;
 
         processed++;
         if (dstEl)  dstEl.textContent  = `${type} · ${processed}/${total}`;
@@ -617,7 +668,7 @@ if (!window.__pesuDL) {
         <button class="abtn sec" id="allCoursesBtn">All Courses</button>
       </div>
       ${mergeStatusHtml}
-      <div style="margin-top:14px;text-align:center;font-size:9px;color:#475569;letter-spacing:.02em;">
+      <div style="margin-top:14px;text-align:center;font-size:10px;font-weight:600;color:#64748b;letter-spacing:.02em;">
         made with ♥ by Chiranth.R &nbsp;·&nbsp; PES1UG24AM354
       </div>`;
 

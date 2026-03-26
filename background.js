@@ -23,10 +23,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },
       world: 'MAIN',
-      func: (code) => { (0, eval)(code); },
+      func: (code) => (0, eval)(code),
       args: [msg.code]
     })
-      .then(() => sendResponse({ ok: true }))
+      .then(results => sendResponse({ ok: true, result: results?.[0]?.result }))
       .catch(e => sendResponse({ ok: false, error: e.message }));
     return true; // keep channel open for async response
   }
