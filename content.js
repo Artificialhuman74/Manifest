@@ -224,8 +224,56 @@ if (!window.__pesuDL) {
   const clsBtn = shadow.getElementById('clsBtn');
   const hdr    = shadow.getElementById('hdr');
 
+  /* ── onboarding ─────────────────────────────────────────── */
+  function renderOnboarding() {
+    bdy.innerHTML = `
+      <div style="text-align:center;padding:6px 0 14px;">
+        <div style="font-size:28px;margin-bottom:8px;">👋</div>
+        <div style="font-size:14px;font-weight:800;color:#F8FAFC;margin-bottom:4px;">Welcome to Manifest</div>
+        <div style="font-size:11px;color:#64748b;line-height:1.6;">One-time setup — only needed for PPT→PDF conversion</div>
+      </div>
+
+      <div style="background:#1E293B;border:1px solid rgba(255,255,255,0.07);border-radius:9px;padding:11px 13px;margin-bottom:9px;">
+        <div style="font-size:9.5px;font-weight:700;color:#3B82F6;margin-bottom:7px;letter-spacing:.06em;text-transform:uppercase;">Step 1 — Install LibreOffice</div>
+        <div style="font-size:11px;color:#94A3B8;line-height:1.6;margin-bottom:9px;">A free app that converts .pptx slides to PDF. About 5 min to install.</div>
+        <button id="libreBtn" style="display:block;width:100%;padding:9px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);border-radius:7px;text-align:center;color:#60a5fa;font-size:11px;font-weight:700;cursor:pointer;">↗ Download LibreOffice (free)</button>
+      </div>
+
+      <div style="background:#1E293B;border:1px solid rgba(255,255,255,0.07);border-radius:9px;padding:11px 13px;margin-bottom:9px;">
+        <div style="font-size:9.5px;font-weight:700;color:#8B5CF6;margin-bottom:7px;letter-spacing:.06em;text-transform:uppercase;">Step 2 — Run setup script</div>
+        <div style="font-size:11px;color:#94A3B8;line-height:1.5;margin-bottom:8px;">Open a terminal in the extension folder and run:</div>
+        <div style="font-size:10px;font-family:monospace;background:#0F172A;border:1px solid rgba(255,255,255,0.06);border-radius:5px;padding:8px 10px;color:#14F1D9;margin-bottom:6px;user-select:all;">bash install_native_host.sh</div>
+        <div style="font-size:10px;color:#475569;line-height:1.5;"><b style="color:#64748b;">Windows:</b> right-click the folder → Open in Terminal, then run:<br><span style="font-family:monospace;color:#14F1D9;font-size:9.5px;">python native_host.py --install</span></div>
+      </div>
+
+      <div style="font-size:10px;color:#475569;text-align:center;margin-bottom:11px;line-height:1.5;">You can skip — all features except PPT conversion work without this.</div>
+      <button class="abtn" id="onboardDone">Got it, let's go →</button>
+      <button class="abtn sec" id="onboardSkip" style="margin-top:7px;">Skip for now</button>`;
+
+    shadow.getElementById('libreBtn').addEventListener('click', () => {
+      window.open('https://www.libreoffice.org/download/download-libreoffice/', '_blank');
+    });
+    const finish = () => { localStorage.setItem('__pesuOnboarded', '1'); renderWelcome(); };
+    shadow.getElementById('onboardDone').addEventListener('click', finish);
+    shadow.getElementById('onboardSkip').addEventListener('click', finish);
+  }
+
+  function renderWelcome() {
+    bdy.innerHTML = `
+      <div style="text-align:center;padding:24px 8px 20px;">
+        <div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#3B82F6,#8B5CF6);display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#fff;box-shadow:0 0 22px rgba(59,130,246,.5);margin-bottom:12px;">M</div>
+        <div style="font-size:15px;font-weight:800;background:linear-gradient(120deg,#F8FAFC,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px;">Manifest is ready</div>
+        <div style="font-size:11px;color:#64748b;line-height:1.65;">Navigate to a course on PESU Academy<br>then click the extension icon to download slides.</div>
+      </div>`;
+    setTimeout(() => refresh(), 2200);
+  }
+
   /* ── show / hide / toggle ───────────────────────────────── */
-  function show()   { panel.classList.add('show'); refresh(); }
+  function show() {
+    panel.classList.add('show');
+    if (!localStorage.getItem('__pesuOnboarded')) renderOnboarding();
+    else refresh();
+  }
   function hide()   { panel.classList.remove('show'); }
   function toggle() { panel.classList.contains('show') ? hide() : show(); }
 
@@ -285,13 +333,19 @@ if (!window.__pesuDL) {
       tx.objectStore('kv').put(h, 'dir');
     } catch {}
   }
-  async function chooseDir() {
+  async function chooseDir(nameEl) {
+    const prev = nameEl?.textContent;
+    if (nameEl) nameEl.textContent = 'Opening picker…';
     try {
       const h = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
       dirHandle = h;
       await saveDirHandle(h);
       return h;
-    } catch { return null; }
+    } catch (e) {
+      if (nameEl) nameEl.textContent = e.name === 'AbortError' ? (prev || 'Downloads/PESU_Slides') : '⚠ Not supported — type a folder below';
+      if (e.name !== 'AbortError') console.warn('[Manifest] showDirectoryPicker:', e.message);
+      return null;
+    }
   }
   const sanFS = s => (s || 'unknown').replace(/[<>:"/\\|?*\n\r]+/g, '_').replace(/\s+/g, '_').trim().slice(0, 60);
   async function fsaWrite(subdir, filename, bytes) {
@@ -395,7 +449,21 @@ if (!window.__pesuDL) {
   }
 
   function getPageState() {
-    if (isOnUnitsPage()) return 'units';
+    if (isOnUnitsPage()) {
+      // Include active unit tab so switching tabs triggers a re-render
+      const rows     = qsa('tr[onclick]');
+      const tabLinks = qsa('#courselistunit li a');
+      const visibleIds = new Set(
+        rows.flatMap(tr =>
+          Array.from((tr.getAttribute('onclick') || '').matchAll(/'(\d+)'/g), m => m[1])
+        )
+      );
+      const activeLink = tabLinks.find(a => {
+        const m = a.getAttribute('href')?.match(/courseUnit_(\d+)/);
+        return m && visibleIds.has(m[1]);
+      });
+      return 'units:' + (activeLink?.getAttribute('href') || rows.length);
+    }
     if (detectCourses().length) return 'courses';
     return 'none';
   }
@@ -537,8 +605,9 @@ if (!window.__pesuDL) {
     const getConvert = () => shadow.getElementById('convertToggle').checked;
 
     shadow.getElementById('dirRow').addEventListener('click', async () => {
-      const h = await chooseDir();
-      if (h) shadow.getElementById('dirName').textContent = h.name;
+      const nameEl = shadow.getElementById('dirName');
+      const h = await chooseDir(nameEl);
+      if (h && nameEl) nameEl.textContent = h.name;
     });
 
     shadow.querySelectorAll('.tbtn[data-type]').forEach(btn => {

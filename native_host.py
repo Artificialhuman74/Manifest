@@ -22,9 +22,11 @@ import shutil
 from pathlib import Path
 
 LIBRE_PATHS = [
-    '/Applications/LibreOffice.app/Contents/MacOS/soffice',
-    '/usr/local/bin/soffice',
-    '/usr/bin/soffice',
+    '/Applications/LibreOffice.app/Contents/MacOS/soffice',   # macOS
+    '/usr/local/bin/soffice',                                  # Linux
+    '/usr/bin/soffice',                                        # Linux
+    r'C:\Program Files\LibreOffice\program\soffice.exe',       # Windows default
+    r'C:\Program Files (x86)\LibreOffice\program\soffice.exe', # Windows 32-bit
 ]
 CHUNK_SIZE = 700_000  # chars of base64 per outgoing message (~525 KB decoded)
 
@@ -119,5 +121,41 @@ def main():
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+def install_windows():
+    """Register the native messaging host on Windows via the registry."""
+    import winreg
+    import getpass
+
+    script_dir = Path(__file__).resolve().parent
+    manifest_path = script_dir / 'com.pesu.downloader.json'
+
+    ext_id = input('Open chrome://extensions, find Manifest, copy its ID, paste here: ').strip()
+    if not ext_id:
+        print('No extension ID entered — aborting.')
+        return
+
+    manifest = {
+        'name': 'com.pesu.downloader',
+        'description': 'PESU PPT converter',
+        'path': str(script_dir / 'native_host.py'),
+        'type': 'stdio',
+        'allowed_origins': [f'chrome-extension://{ext_id}/']
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2))
+
+    reg_key = r'Software\Google\Chrome\NativeMessagingHosts\com.pesu.downloader'
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, reg_key) as key:
+        winreg.SetValueEx(key, '', 0, winreg.REG_SZ, str(manifest_path))
+
+    print(f'Done. Manifest written to {manifest_path}')
+    print('Reload the extension in chrome://extensions.')
+
+
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == '--install':
+        if sys.platform == 'win32':
+            install_windows()
+        else:
+            print('--install is for Windows only. On Mac/Linux, run: bash install_native_host.sh')
+    else:
+        main()

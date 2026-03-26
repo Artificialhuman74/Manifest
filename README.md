@@ -11,17 +11,29 @@ Chrome extension to bulk-download slides, notes, assignments, QB, QA, and refere
 - Firefox does **not** support Chrome extensions.
 
 ### 2. LibreOffice *(only needed for the Convert PPTs to PDF feature)*
-LibreOffice is free and open-source office software that the extension uses to convert `.pptx` files to PDF.
+LibreOffice is free and open-source office software (~350 MB) that converts `.pptx` files to PDF.
 
-**Download and install:** https://www.libreoffice.org/download/download-libreoffice/
+**Download:** https://www.libreoffice.org/download/download-libreoffice/
 
-After installing LibreOffice, run the one-time setup script to connect it to the extension:
+After installing, run the one-time setup script to connect LibreOffice to the extension.
 
+#### Mac
+Open a terminal in the `pesu-downloader` folder and run:
 ```bash
 bash install_native_host.sh
 ```
-
 When prompted, open `chrome://extensions`, find **Manifest**, copy its ID, and paste it in the terminal.
+
+#### Windows
+Open PowerShell or Command Prompt in the `pesu-downloader` folder and run:
+```powershell
+python native_host.py --install
+```
+*(Python 3 must be installed — download from https://www.python.org/downloads/ if needed. Check "Add to PATH" during install.)*
+
+When prompted, paste the extension ID from `chrome://extensions`.
+
+---
 
 Then reload the extension in `chrome://extensions`. The **Convert PPTs to PDF** toggle will now work.
 
