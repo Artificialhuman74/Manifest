@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "PESU Slide Downloader",
+  "version": "1.0",
+  "description": "Bulk download slides from PESU Academy courses",
+  "permissions": ["downloads", "scripting", "tabs", "nativeMessaging"],
+  "host_permissions": [
+    "https://*.pesuacademy.com/*"
+  ],
+  "action": {},
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.pesuacademy.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
