@@ -333,17 +333,28 @@ if (!window.__pesuDL) {
       tx.objectStore('kv').put(h, 'dir');
     } catch {}
   }
-  async function chooseDir(nameEl) {
-    const prev = nameEl?.textContent;
-    if (nameEl) nameEl.textContent = 'Opening picker…';
+  // Always fetch element fresh — avoids stale reference if bdy re-rendered while picker was open
+  const getDirNameEl = () => shadow.getElementById('dirName');
+
+  async function chooseDir() {
+    if (typeof window.showDirectoryPicker !== 'function') {
+      const el = getDirNameEl();
+      if (el) el.textContent = '⚠ Not supported in this browser';
+      return null;
+    }
+    const prev = getDirNameEl()?.textContent || 'Downloads/PESU_Slides';
+    const setLabel = txt => { const el = getDirNameEl(); if (el) el.textContent = txt; };
+    setLabel('Opening picker…');
     try {
       const h = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
       dirHandle = h;
-      await saveDirHandle(h);
+      saveDirHandle(h); // fire-and-forget; not awaited
+      setLabel(h.name);
       return h;
     } catch (e) {
-      if (nameEl) nameEl.textContent = e.name === 'AbortError' ? (prev || 'Downloads/PESU_Slides') : '⚠ Not supported — type a folder below';
-      if (e.name !== 'AbortError') console.warn('[Manifest] showDirectoryPicker:', e.message);
+      if (e.name === 'AbortError') { setLabel(prev); return null; }
+      console.warn('[Manifest] showDirectoryPicker:', e.name, e.message);
+      setLabel('⚠ ' + e.message.slice(0, 38));
       return null;
     }
   }
@@ -604,11 +615,7 @@ if (!window.__pesuDL) {
     const getMergeName = () => (nameInput.value.trim() || defaultName).replace(/[^a-zA-Z0-9 _\-]/g, '_').trim().slice(0, 80) || 'merged';
     const getConvert = () => shadow.getElementById('convertToggle').checked;
 
-    shadow.getElementById('dirRow').addEventListener('click', async () => {
-      const nameEl = shadow.getElementById('dirName');
-      const h = await chooseDir(nameEl);
-      if (h && nameEl) nameEl.textContent = h.name;
-    });
+    shadow.getElementById('dirRow').addEventListener('click', () => chooseDir());
 
     shadow.querySelectorAll('.tbtn[data-type]').forEach(btn => {
       btn.addEventListener('click', async () => {
