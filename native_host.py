@@ -124,20 +124,28 @@ def main():
 def install_windows():
     """Register the native messaging host on Windows via the registry."""
     import winreg
-    import getpass
 
     script_dir = Path(__file__).resolve().parent
     manifest_path = script_dir / 'com.pesu.downloader.json'
+    bat_path      = script_dir / 'native_host.bat'
 
     ext_id = input('Open chrome://extensions, find Manifest, copy its ID, paste here: ').strip()
     if not ext_id:
         print('No extension ID entered — aborting.')
         return
 
+    # Chrome on Windows cannot execute .py files directly — it needs an executable.
+    # Write a .bat wrapper that invokes Python with this script.
+    bat_path.write_text(
+        f'@echo off\r\npython "{script_dir / "native_host.py"}"\r\n',
+        encoding='utf-8'
+    )
+    print(f'Wrapper created: {bat_path}')
+
     manifest = {
         'name': 'com.pesu.downloader',
         'description': 'PESU PPT converter',
-        'path': str(script_dir / 'native_host.py'),
+        'path': str(bat_path),   # must point to an executable, not a .py file
         'type': 'stdio',
         'allowed_origins': [f'chrome-extension://{ext_id}/']
     }
@@ -147,7 +155,7 @@ def install_windows():
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, reg_key) as key:
         winreg.SetValueEx(key, '', 0, winreg.REG_SZ, str(manifest_path))
 
-    print(f'Done. Manifest written to {manifest_path}')
+    print(f'Manifest written: {manifest_path}')
     print('Reload the extension in chrome://extensions.')
 
 

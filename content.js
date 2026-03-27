@@ -239,11 +239,18 @@ if (!window.__pesuDL) {
         <button id="libreBtn" style="display:block;width:100%;padding:9px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);border-radius:7px;text-align:center;color:#60a5fa;font-size:11px;font-weight:700;cursor:pointer;">↗ Download LibreOffice (free)</button>
       </div>
 
+      <div style="background:#1E293B;border:1px solid rgba(255,255,255,0.07);border-radius:9px;padding:11px 13px;margin-bottom:5px;">
+        <div style="font-size:9.5px;font-weight:700;color:#8B5CF6;margin-bottom:7px;letter-spacing:.06em;text-transform:uppercase;">Step 2 — Mac: Run setup script</div>
+        <div style="font-size:11px;color:#94A3B8;line-height:1.5;margin-bottom:8px;">Open Terminal in the extension folder and run:</div>
+        <div style="font-size:10px;font-family:monospace;background:#0F172A;border:1px solid rgba(255,255,255,0.06);border-radius:5px;padding:8px 10px;color:#14F1D9;user-select:all;">bash install_native_host.sh</div>
+      </div>
+
       <div style="background:#1E293B;border:1px solid rgba(255,255,255,0.07);border-radius:9px;padding:11px 13px;margin-bottom:9px;">
-        <div style="font-size:9.5px;font-weight:700;color:#8B5CF6;margin-bottom:7px;letter-spacing:.06em;text-transform:uppercase;">Step 2 — Run setup script</div>
-        <div style="font-size:11px;color:#94A3B8;line-height:1.5;margin-bottom:8px;">Open a terminal in the extension folder and run:</div>
-        <div style="font-size:10px;font-family:monospace;background:#0F172A;border:1px solid rgba(255,255,255,0.06);border-radius:5px;padding:8px 10px;color:#14F1D9;margin-bottom:6px;user-select:all;">bash install_native_host.sh</div>
-        <div style="font-size:10px;color:#475569;line-height:1.5;"><b style="color:#64748b;">Windows:</b> right-click the folder → Open in Terminal, then run:<br><span style="font-family:monospace;color:#14F1D9;font-size:9.5px;">python native_host.py --install</span></div>
+        <div style="font-size:9.5px;font-weight:700;color:#F59E0B;margin-bottom:7px;letter-spacing:.06em;text-transform:uppercase;">Step 2 — Windows: Run setup script</div>
+        <div style="font-size:11px;color:#94A3B8;line-height:1.5;margin-bottom:6px;">Requires <b style="color:#F8FAFC;">Python 3</b> — download at <span style="color:#60a5fa;">python.org</span> (check "Add to PATH").</div>
+        <div style="font-size:11px;color:#94A3B8;line-height:1.5;margin-bottom:8px;">Right-click the extension folder → <i>Open in Terminal</i>, then run:</div>
+        <div style="font-size:10px;font-family:monospace;background:#0F172A;border:1px solid rgba(255,255,255,0.06);border-radius:5px;padding:8px 10px;color:#14F1D9;margin-bottom:6px;user-select:all;">python native_host.py --install</div>
+        <div style="font-size:10px;color:#475569;line-height:1.5;">Paste the extension ID when asked. This creates a <span style="color:#94A3B8;font-family:monospace;">native_host.bat</span> file and registers it with Chrome.</div>
       </div>
 
       <div style="font-size:10px;color:#475569;text-align:center;margin-bottom:11px;line-height:1.5;">You can skip — all features except PPT conversion work without this.</div>
@@ -316,16 +323,6 @@ if (!window.__pesuDL) {
       req.onerror   = e => rej(e.target.error);
     });
   }
-  async function loadDirHandle() {
-    try {
-      const db = await openIDB();
-      return new Promise(res => {
-        const req = db.transaction('kv').objectStore('kv').get('dir');
-        req.onsuccess = () => res(req.result || null);
-        req.onerror   = () => res(null);
-      });
-    } catch { return null; }
-  }
   async function saveDirHandle(h) {
     try {
       const db = await openIDB();
@@ -367,8 +364,8 @@ if (!window.__pesuDL) {
     await w.close();
   }
 
-  // Load stored handle on init (permission checked before each download)
-  loadDirHandle().then(h => { if (h) dirHandle = h; });
+  // Don't auto-restore the saved handle on init — FSA permissions expire between sessions
+  // and auto-restoring would show a custom folder name while downloads silently go to the default.
 
   /* ── DOM helpers ────────────────────────────────────────── */
   function getCourseTitle() {
