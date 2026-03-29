@@ -78,7 +78,7 @@ If you skip this step, everything works normally — the Merge toggle just won't
 1. Open Chrome and go to `chrome://extensions`
 2. Enable **Developer mode** (toggle in the top-right corner)
 3. Click **Load unpacked**
-4. Select the `pesu-downloader` folder
+4. Select the `Manifest` folder
 5. The extension icon appears in your toolbar
 
 To reload after a code change: click the refresh icon on the extension card in `chrome://extensions`.
