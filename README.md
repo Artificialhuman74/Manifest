@@ -18,7 +18,7 @@ LibreOffice is free and open-source office software (~350 MB) that converts `.pp
 After installing, run the one-time setup script to connect LibreOffice to the extension.
 
 #### Mac
-Open a terminal in the `pesu-downloader` folder and run:
+Open a terminal in the `Manifest` folder and run:
 ```bash
 bash install_native_host.sh
 ```
@@ -27,7 +27,7 @@ When prompted, open `chrome://extensions`, find **Manifest**, copy its ID, and p
 #### Windows
 Python 3 must be installed — download from https://www.python.org/downloads/ (check **"Add to PATH"** during install).
 
-Open PowerShell or Command Prompt in the `pesu-downloader` folder and run:
+Open PowerShell or Command Prompt in the `Manifest` folder and run:
 ```powershell
 python native_host.py --install
 ```
