@@ -47,7 +47,7 @@ If you skip this step, everything works normally — the Convert toggle will fal
 ### 3. `pdf-lib.min.js` *(only needed for the Merge PDFs feature)*
 The merge feature requires this file to be present in the extension folder. It is not bundled because of file size.
 
-**Download it once and place it in the `pesu-downloader` folder:**
+**Download it once and place it in the `Manifest` folder:**
 
 **Mac / Linux:**
 ```bash
@@ -61,7 +61,7 @@ Invoke-WebRequest "https://unpkg.com/pdf-lib/dist/pdf-lib.min.js" -OutFile pdf-l
 
 After downloading, your folder should look like this:
 ```
-pesu-downloader/
+Manifest/
   background.js
   content.js
   manifest.json
